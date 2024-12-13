@@ -49,6 +49,7 @@ def main() -> int:
 
     # rich.print(list(zip(reports, safe_check)))
     print(safe_count)
+    return 0
 
 
 if __name__ == "__main__":

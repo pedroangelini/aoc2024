@@ -21,6 +21,7 @@ def main() -> int:
         total += i * counter_list2[i]
 
     print(f"{total = }")
+    return 0
 
 
 if __name__ == "__main__":

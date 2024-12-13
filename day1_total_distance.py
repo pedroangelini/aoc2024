@@ -16,6 +16,8 @@ def main() -> int:
 
     total = sum([abs(i[0] - i[1]) for i in zip(list1, list2)])
     print(total)
+    
+    return 0
 
 
 if __name__ == "__main__":
