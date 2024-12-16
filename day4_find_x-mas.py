@@ -1,11 +1,6 @@
-
 import re
-
+from itertools import product
 from utils.input_utils import get_input_lines_from_args
-
-
-
-
 
 
 def print_nice(board: list[list[str]]) -> None:
@@ -60,42 +55,54 @@ def invert_v(board: list[list[str]]) -> list[list[str]]:
     return inverted
 
 
-def skew_up(board: list[list[str]]) -> list[list[str]]:
-    rows = len(board)
-    cols = len(board[0])
-    skewed = empty_board(rows * 2 - 1, cols)
-    # print_nice(rotated)
-    for i in range(rows):  # lines
-        for j in range(cols):  # cols
-            skewed[i + rows - 1 - j][j] = board[i][j]
+def detect_std_x(board: list[list[str]], row, col) -> bool:
+    # checks for a X-MAS in the standard formation
+    ret = board[row][col] == "A"
+    ret &= board[row - 1][col - 1] == "M"
+    ret &= board[row - 1][col + 1] == "S"
+    ret &= board[row + 1][col - 1] == "M"
+    ret &= board[row + 1][col + 1] == "S"
+    # if ret:
+    #     print(row, col, ret)
 
-    return skewed
-
-
-def skew_down(board: list[list[str]]) -> list[list[str]]:
-    rows = len(board)
-    cols = len(board[0])
-    skewed = empty_board(rows * 2 - 1, cols)
-    # print_nice(rotated)
-    for i in range(rows):  # lines
-        for j in range(cols):  # cols
-            skewed[i + j][j] = board[i][j]
-
-    return skewed
+    return ret
 
 
 def count_occurrences(input: list[list[str]]) -> int:
-    all_str = "\n".join("".join(l) for l in input)
-    matcher = re.compile(r"XMAS")
-    return len(matcher.findall(all_str))
+    rows = len(input)
+    cols = len(input[0])
+    count = 0
+    for i, j in product(range(1, rows - 1), range(1, cols - 1)):
+        count += detect_std_x(input, i, j)
+
+    return count
 
 
 def main() -> int:
-    global input
+    # global input
     input = get_input_lines_from_args()
     input = [list(line) for line in input]
 
+    count = 0
+    board = input.copy()
+
+    # print_nice(board)
+    count += count_occurrences(board)
+
+    board = rotate(input)
+    # print_nice(board)
+    count += count_occurrences(board)
+
+    board = invert_h(invert_v(input))
+    # print_nice(board)
+    count += count_occurrences(board)
+
+    board = invert_h(invert_v(rotate(input)))
+    # print_nice(board)
+    count += count_occurrences(board)
+
+    print("total", count)
+
 
 if __name__ == "__main__":
-#    raise (SystemExit(main()))
-    main()
+    raise (SystemExit(main()))
