@@ -1,13 +1,34 @@
+
 from __future__ import annotations
 from utils.input_utils import get_input_from_args
 from copy import deepcopy
-import itertools
+from enum import Enum, auto
 
 
-def next_orientation():
-    _cycle = itertools.cycle("^>v<")
-    yield _cycle.__next__()
+guard_cycle = {
+    "^":(-1, 0),
+    ">":( 0, 1),
+    "v":( 1, 0),
+    "<":( 0, 1),
+}
 
+
+def orientation_gen():
+    global guard_cycle
+
+    cur_pos =-1
+    while True:
+        cur_pos += 1
+        if cur_pos == len(guard_cycle):
+            cur_pos = 0
+        yield list(guard_cycle.keys())[cur_pos]
+
+orientation_cycle= orientation_gen()
+
+class BoardState(Enum):
+    WALKING = auto()
+    BLOCKED = auto()
+    EXITED = auto()
 
 class Board:
     _map: list[list[str]]
@@ -46,6 +67,30 @@ class Board:
     def char_count(self, char: str) -> int:
         s = str(self)
 
+    def find_char(self, char) -> tuple[int, int]|None:
+        lines, cols = self.shape
+        for l in range(lines):
+            for c in range(cols):
+                if self._map[l][c] == char:
+                    return (l, c)
+        return None
+
+    def find_guard(self) -> tuple[int, int, str]:
+        for g in guard_cycle:
+            found = self.find_char(g)
+            if found is not None:
+                return (*found, g)
+
+    @property
+    def state(self) -> BoardState:
+        ...
+
+
+def next_frame(board: Board) -> Boars:
+    #match boaed.state:
+    return None
+
+
 
 def main() -> int:
     input = get_input_from_args()
@@ -53,10 +98,9 @@ def main() -> int:
     print(repr(board))
     print("-----------------")
 
-    print(orientation := next_orientation())
-    print(orientation := next_orientation())
-    print(orientation := next_orientation())
-    print(orientation := next_orientation())
+    #print(next(orientation_cycle))
+    guard_orient = next(orientation_cycle)
+    print(board.find_guard())
 
 
 if __name__ == "__main__":
