@@ -1,7 +1,9 @@
 from __future__ import annotations
 from enum import Enum, auto, Flag, IntEnum
 from utils.input_utils import get_input_from_args
-from tqdm import tqdm
+from tqdm.auto import tqdm
+
+# print = tqdm.write
 
 
 class GameExitCode(Enum):
@@ -163,6 +165,9 @@ class Board:
             self.shape = (0, 0)
         else:
             self.shape = (len(self.map), len(self.map[0]))
+            self.map[self.guard.position[0]][
+                self.guard.position[1]
+            ] |= BoardTile.STARTING
 
     @classmethod
     def _board_from_str(
@@ -220,6 +225,7 @@ class Board:
             next_pos = naive_next_pos
 
         # check if colliding
+        ## FIXME: colliding should just turn the guard and keep it in the same place
         elif self.map[naive_next_pos[0]][naive_next_pos[1]] & BoardTile.OBSTACLE:
             ret = BoardTickState.COLLIDE
             next_direction = self.guard.next_direction()
@@ -254,9 +260,9 @@ class Board:
                 self._map_walked_tile[self.guard.direction]
                 & self.map[self.guard.position[0]][self.guard.position[1]]
             ):
-                print(f"loop detected in {self.guard.position}")
+                # print(f"loop detected in {self.guard.position}")
                 ret = BoardTickState.LOOP
-
+        print(repr(self))
         # update the map to add
         return ret
 
@@ -286,7 +292,7 @@ class Board:
         return count
 
 
-def run_game(input_board: Board) -> tuple[Board, GameExitCode]:
+def run_game(input_board: Board) -> tuple[Board, BoardTickState]:
     board = Board(input_board)  # copy the input board to mutate
     ret = BoardTickState.START
     # progress_bar = tqdm()
@@ -297,31 +303,59 @@ def run_game(input_board: Board) -> tuple[Board, GameExitCode]:
     return board, ret
 
 
-def generate_obstacle_candidates(finished_board: Board) -> list[tuple[int, int]]: ...
+def get_candidate_obstacles(complete_game: Board) -> list[tuple[int, int]]:
+
+    candidates = []
+    for r in range(complete_game.shape[0]):
+        for c in range(complete_game.shape[1]):
+            if (
+                complete_game.map[r][c]
+                & (
+                    BoardTile.WALKED_PATH_N
+                    | BoardTile.WALKED_PATH_E
+                    | BoardTile.WALKED_PATH_S
+                    | BoardTile.WALKED_PATH_W
+                )
+                & ~BoardTile.STARTING
+                & ~BoardTile.OBSTACLE
+            ):
+                candidates.append((r, c))
+
+    return candidates
 
 
 def main() -> int:
     input_str = get_input_from_args()
 
     starting_board = Board(input_str)
-    print("starting")
-    # print(repr(starting_board))
+    print("STARTING")
+    print(repr(starting_board))
     baseline, exit_status = run_game(starting_board)
     print("---------")
+    print("BASELINE")
     print(repr(baseline))
     print(f"exit status: {exit_status.name}")
     print(f"number of walks: {baseline.count_walks()}")
-
     exit()
-    obstacle_candidates = generate_obstacle_candidates(baseline)
+    print("---------\n")
+    print("getting possible obstacles")
+    obstacle_candidates = get_candidate_obstacles(baseline)
+    print(f"got {len(obstacle_candidates)}")
 
+    print("---------\n")
+    print("TESTING LOOPS")
     loop_count = 0
-    for obstacle_pos in obstacle_candidates:
-        test_board = starting_board.with_tile(obstacle_pos, BoardTile.OBSTACLE)
-        test_result, exit_code = run_game(starting_board)
+    for r, c in tqdm(obstacle_candidates):
+        if starting_board.map[r][c] & (BoardTile.STARTING | BoardTile.OBSTACLE):
+            continue
 
-        if exit_code == GameExitCode.GUARD_LOOPS:
+        test_board = Board(starting_board)
+        test_board.map[r][c] = BoardTile.OBSTACLE
+        _, exit_code = run_game(test_board)
+
+        if exit_code == BoardTickState.LOOP:
             loop_count += 1
+    print(f"\nloop count: {loop_count}")
 
     return 0
 
