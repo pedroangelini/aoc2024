@@ -1,6 +1,7 @@
 from __future__ import annotations
 from enum import Enum, auto, Flag, IntEnum
 from utils.input_utils import get_input_from_args
+from tqdm import tqdm
 
 
 class GameExitCode(Enum):
@@ -9,10 +10,10 @@ class GameExitCode(Enum):
 
 
 class GuardDirection(IntEnum):
-    N = 1
-    E = 2
-    S = 3
-    W = 4
+    N = 0
+    E = 1
+    S = 2
+    W = 3
 
 
 class BoardTile(Flag):
@@ -27,12 +28,6 @@ class BoardTile(Flag):
     WALKED_PATH_E = auto()
     WALKED_PATH_S = auto()
     WALKED_PATH_W = auto()
-
-
-class BoardTickState(Enum):
-    MOVE = auto()
-    COLLIDE = auto()
-    EXIT = auto()
 
 
 class Guard:
@@ -63,10 +58,10 @@ class Guard:
         return (self.position[0] + movement[0], self.position[1] + movement[1])
 
     def next_direction(self) -> GuardDirection:
-        if self.direction < 4:
-            return self.direction + 1
+        if self.direction < 3:
+            return GuardDirection(self.direction + 1)
         else:
-            return 0
+            return GuardDirection.N
 
     def move_to(
         self, position: tuple[int, int], direction: GuardDirection | None = None
@@ -76,13 +71,15 @@ class Guard:
             self.direction = direction
 
     def __str__(self) -> str:
-        return f"Guard at {self.position}, facing {self.direction.name}"
+        return f"Guard at {self.position}, facing {repr(self.direction)}"
 
 
 class BoardTickState(Enum):
     MOVE = auto()
     COLLIDE = auto()
     EXIT = auto()
+    LOOP = auto()
+    START = auto()
 
 
 class Board:
@@ -97,20 +94,41 @@ class Board:
         "<": BoardTile.GUARD_FACING_W,
         ".": BoardTile.EMPTY,
     }
-    # need to make mappings for tile to stuff a function because of combinatorials
-    _map_til_str = {
-        BoardTile.EMPTY: ".",
-        BoardTile.OBSTACLE: "#",
-        BoardTile.GUARD_FACING_N: "^",
-        BoardTile.GUARD_FACING_E: ">",
-        BoardTile.GUARD_FACING_S: "v",
-        BoardTile.GUARD_FACING_W: "<",
-        BoardTile.WALKED_PATH_N: "X",
-        BoardTile.WALKED_PATH_E: "X",
-        BoardTile.WALKED_PATH_S: "X",
-        BoardTile.WALKED_PATH_W: "X",
-    }
-    # need to make mappings for tile to stuff a function because of combinatorials
+
+    @classmethod
+    def _map_tile_str(cls, tile: BoardTile) -> str:
+        # _map_tile_str = {
+        #     BoardTile.EMPTY: ".",
+        #     BoardTile.OBSTACLE: "#",
+        #     BoardTile.GUARD_FACING_N: "^",
+        #     BoardTile.GUARD_FACING_E: ">",
+        #     BoardTile.GUARD_FACING_S: "v",
+        #     BoardTile.GUARD_FACING_W: "<",
+        #     BoardTile.WALKED_PATH_N: "X",
+        #     BoardTile.WALKED_PATH_E: "X",
+        #     BoardTile.WALKED_PATH_S: "X",
+        #     BoardTile.WALKED_PATH_W: "X",
+        # }
+        if not tile:
+            return "."
+        if tile & BoardTile.OBSTACLE:
+            return "#"
+        if tile & BoardTile.GUARD_FACING_N:
+            return "^"
+        if tile & BoardTile.GUARD_FACING_E:
+            return ">"
+        if tile & BoardTile.GUARD_FACING_S:
+            return "v"
+        if tile & BoardTile.GUARD_FACING_W:
+            return "<"
+        if tile & (
+            BoardTile.WALKED_PATH_N
+            | BoardTile.WALKED_PATH_E
+            | BoardTile.WALKED_PATH_S
+            | BoardTile.WALKED_PATH_W
+        ):
+            return "X"
+
     _map_tile_guard_orient = {
         BoardTile.GUARD_FACING_N: GuardDirection.N,
         BoardTile.GUARD_FACING_E: GuardDirection.E,
@@ -140,6 +158,7 @@ class Board:
             self.guard = Guard((0, 0), GuardDirection.N)
         else:
             raise TypeError(f"Expected str or Board, got {type(input)}")
+
         if len(self.map) == 0:
             self.shape = (0, 0)
         else:
@@ -205,23 +224,40 @@ class Board:
             ret = BoardTickState.COLLIDE
             next_direction = self.guard.next_direction()
             # will not take care of case when the guard would have to turn twice
-            next_pos = Guard(self.guard.direction, next_direction).naive_next_pos()
+            next_pos = Guard(self.guard.position, next_direction).naive_next_pos()
         else:
             ret = BoardTickState.MOVE
             next_direction = self.guard.direction
             next_pos = naive_next_pos
 
-        # update the current tile with the walking flag of the current and next directions (in case the guard has turned)
+        # update the current tile by removing the guard flag...
+        self.map[self.guard.position[0]][
+            self.guard.position[1]
+        ] &= ~self._map_guard_orient_tile[self.guard.direction]
+        # ... and adding the  walking flag of the current and next directions (in case the guard has turned)
         self.map[self.guard.position[0]][self.guard.position[1]] |= (
             self._map_walked_tile[self.guard.direction]
             | self._map_walked_tile[next_direction]
         )
+        # then update the guard's
+        self.guard.position = next_pos
+        self.guard.direction = next_direction
+        if ret != BoardTickState.EXIT:
+            self.map[next_pos[0]][next_pos[1]] |= self._map_guard_orient_tile[
+                next_direction
+            ]
 
-        ### loop detection goes here - check if the guard in the next position is oriented the same as
+            # loop detection goes here - check if the guard has already moved in
+            # same position, same direction
 
-        self.map[next_pos[0]][next_pos[1]] |= self._map_guard_orient_tile[
-            next_direction
-        ]
+            if (
+                self._map_walked_tile[self.guard.direction]
+                & self.map[self.guard.position[0]][self.guard.position[1]]
+            ):
+                print(f"loop detected in {self.guard.position}")
+                ret = BoardTickState.LOOP
+
+        # update the map to add
         return ret
 
     def __str__(self):
@@ -229,15 +265,36 @@ class Board:
         for r in range(self.shape[0]):
             line = ""
             for c in range(self.shape[1]):
-                line = line + self._map_til_str[self.map[r][c]]
+                line = line + self._map_tile_str(self.map[r][c])
             result += line + "\n"
         return result
 
     def __repr__(self):
         return f"Board {str(self.shape)}\n{str(self)}\n{self.guard}"
 
+    def count_walks(self) -> int:
+        count = 0
+        for r in range(self.shape[0]):
+            for c in range(self.shape[1]):
+                if self.map[r][c] & (
+                    BoardTile.WALKED_PATH_N
+                    | BoardTile.WALKED_PATH_E
+                    | BoardTile.WALKED_PATH_S
+                    | BoardTile.WALKED_PATH_W
+                ):
+                    count += 1
+        return count
 
-def run_game(board: Board) -> tuple[Board, GameExitCode]: ...
+
+def run_game(input_board: Board) -> tuple[Board, GameExitCode]:
+    board = Board(input_board)  # copy the input board to mutate
+    ret = BoardTickState.START
+    # progress_bar = tqdm()
+    while ret not in (BoardTickState.EXIT, BoardTickState.LOOP):
+        ret = board.tick()
+        # progress_bar.update()
+
+    return board, ret
 
 
 def generate_obstacle_candidates(finished_board: Board) -> list[tuple[int, int]]: ...
@@ -248,19 +305,15 @@ def main() -> int:
 
     starting_board = Board(input_str)
     print("starting")
-    print(repr(starting_board))
-    board_copy = Board(starting_board)
-    print("copy")
-    print(repr(board_copy))
-    board_copy.tick()
-    print("copy after tick")
-    print(repr(board_copy))
-    print("starting")
-    print(repr(starting_board))
-    exit()
-    first_run, _ = run_game(starting_board)
+    # print(repr(starting_board))
+    baseline, exit_status = run_game(starting_board)
+    print("---------")
+    print(repr(baseline))
+    print(f"exit status: {exit_status.name}")
+    print(f"number of walks: {baseline.count_walks()}")
 
-    obstacle_candidates = generate_obstacle_candidates(first_run)
+    exit()
+    obstacle_candidates = generate_obstacle_candidates(baseline)
 
     loop_count = 0
     for obstacle_pos in obstacle_candidates:
