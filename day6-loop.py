@@ -225,12 +225,11 @@ class Board:
             next_pos = naive_next_pos
 
         # check if colliding
-        ## FIXME: colliding should just turn the guard and keep it in the same place
         elif self.map[naive_next_pos[0]][naive_next_pos[1]] & BoardTile.OBSTACLE:
             ret = BoardTickState.COLLIDE
             next_direction = self.guard.next_direction()
             # will not take care of case when the guard would have to turn twice
-            next_pos = Guard(self.guard.position, next_direction).naive_next_pos()
+            next_pos = self.guard.position
         else:
             ret = BoardTickState.MOVE
             next_direction = self.guard.direction
@@ -255,14 +254,16 @@ class Board:
 
             # loop detection goes here - check if the guard has already moved in
             # same position, same direction
+            # IDEA: could detect the loop at the start of the tick
 
             if (
                 self._map_walked_tile[self.guard.direction]
                 & self.map[self.guard.position[0]][self.guard.position[1]]
+                and not ret == BoardTickState.COLLIDE  # if we just collided, we don't
             ):
                 # print(f"loop detected in {self.guard.position}")
                 ret = BoardTickState.LOOP
-        print(repr(self))
+        # print(repr(self))
         # update the map to add
         return ret
 
@@ -336,7 +337,7 @@ def main() -> int:
     print(repr(baseline))
     print(f"exit status: {exit_status.name}")
     print(f"number of walks: {baseline.count_walks()}")
-    exit()
+
     print("---------\n")
     print("getting possible obstacles")
     obstacle_candidates = get_candidate_obstacles(baseline)
