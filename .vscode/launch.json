@@ -10,7 +10,7 @@
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",
-            "args": ["day8/simple-3-a.txt"]
+            "args": ["day10/two_trails.txt"]
         }
     ]
 }
