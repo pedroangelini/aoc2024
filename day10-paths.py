@@ -41,26 +41,23 @@ def find_next_steps(
     return next_steps
 
 
-def recursive_traverse(
-    board: Sequence[Sequence[int]], traversed: tuple[tuple[int, int]]
-) -> tuple[tuple[int, int]]:
+def find_rating(board: Sequence[Sequence[int]], starting: tuple[int, int]) -> int:
 
-    # base case
-    current_pos = traversed[-1]
-    print(f"{traversed = }")
-    print(f"{current_pos = }")
-    if board[current_pos[0]][current_pos[1]] == 9:
-        print("found end of trail")
-        return traversed
+    next_steps = [starting]
+    found_ends = 0
 
-    next_steps = find_next_steps(board, current_pos)
-    print(f"{next_steps = }")
+    while next_steps:
+        current = next_steps.pop()
+        print(f"{current=}")
 
-    # for next_step in next_steps:
-    for next_step in next_steps:
-        print(f"processing {next_step = }")
-        new_traversed = traversed + (next_step,)
-        return recursive_traverse(board, new_traversed)
+        if board[current[0]][current[1]] == 9:
+            found_ends = found_ends + 1
+            continue
+
+        next_steps += find_next_steps(board, current)
+        print(f"{next_steps=}")
+
+    return found_ends
 
 
 def main() -> int:
@@ -68,13 +65,14 @@ def main() -> int:
     board: tuple[tuple] = tuple(str_seq_to_int_tup(l) for l in board)
 
     print_nice(board)
+    total_ratings = 0
 
     for r in range(len(board)):
         for c in range(len(board[0])):
             if board[r][c] == 0:
-                trail = recursive_traverse(board, ((r, c),))
+                total_ratings += find_rating(board, (r, c))
 
-    print(f"{trail = }")
+    print(f"{total_ratings = }")
 
     return 0
 
